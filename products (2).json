@@ -1,0 +1,37 @@
+[
+  {
+    "id": "mtlrmzrhy8icpewnza",
+    "name": "horlics5₹",
+    "price": 40,
+    "category": "Snacks",
+    "createdAt": 1788454509965
+  },
+  {
+    "category": "Personal Care",
+    "createdAt": 1788453607282,
+    "id": "mtlr3n8yvtvz9iqzuu",
+    "name": "Santoor100g",
+    "price": 50
+  },
+  {
+    "category": "Snacks",
+    "createdAt": 1693700002000,
+    "id": "p3",
+    "name": "Good Day Butter Biscuits",
+    "price": 30
+  },
+  {
+    "category": "Beverages",
+    "createdAt": 1693700003000,
+    "id": "p4",
+    "name": "Tata Tea Gold (250g)",
+    "price": 140
+  },
+  {
+    "category": "Personal Care",
+    "createdAt": 1693700004000,
+    "id": "p5",
+    "name": "Dove Bath Soap (Pack of 3)",
+    "price": 165
+  }
+]
