@@ -565,25 +565,43 @@ async function fetchProductsFromCloud() {
     }
   }
   
-  // Fallback: load central products.json file
+  // Master Catalog Sync: load central products.json file
   try {
     const res = await fetch('products.json?v=' + Date.now());
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        const current = getFromStorage(LS_KEYS.PRODUCTS, []);
-        if (current.length === 0 || !localStorage.getItem('ss_device_edited')) {
-          saveToStorage(LS_KEYS.PRODUCTS, data);
-          renderDashboard();
-          renderProducts();
-          renderAdminProducts();
-        }
+        saveToStorage(LS_KEYS.PRODUCTS, data);
+        renderDashboard();
+        renderProducts();
+        renderAdminProducts();
+        return true;
       }
     }
   } catch (e) {
-    // Ignore error
+    // Ignore offline error
   }
   return false;
+}
+
+async function forceSyncWithServer() {
+  try {
+    const res = await fetch('products.json?v=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        saveToStorage(LS_KEYS.PRODUCTS, data);
+        renderDashboard();
+        renderProducts();
+        renderAdminProducts();
+        showToast(`Synced! Loaded ${data.length} products from server.`, 'success');
+        return;
+      }
+    }
+    showToast('Could not load products.json from server', 'error');
+  } catch (e) {
+    showToast('Failed to connect to server', 'error');
+  }
 }
 
 async function saveProductsToCloud(products) {
@@ -1021,5 +1039,6 @@ window.exportProducts = exportProducts;
 window.importProducts = importProducts;
 window.saveCloudDbUrl = saveCloudDbUrl;
 window.fetchProductsFromCloud = fetchProductsFromCloud;
+window.forceSyncWithServer = forceSyncWithServer;
 
 
