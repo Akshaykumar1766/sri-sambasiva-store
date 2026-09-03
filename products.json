@@ -1,8 +1,16 @@
 [
-  { "id": "p1", "name": "Sona Masoori Rice (5kg)", "price": 320, "category": "Groceries", "createdAt": 1693700000000 },
-  { "id": "p2", "name": "Refined Sugar (1kg)", "price": 45, "category": "Groceries", "createdAt": 1693700001000 },
-  { "id": "p3", "name": "Good Day Butter Biscuits", "price": 30, "category": "Snacks", "createdAt": 1693700002000 },
-  { "id": "p4", "name": "Tata Tea Gold (250g)", "price": 140, "category": "Beverages", "createdAt": 1693700003000 },
-  { "id": "p5", "name": "Dove Bath Soap (Pack of 3)", "price": 165, "category": "Personal Care", "createdAt": 1693700004000 },
-  { "id": "p6", "name": "Fresh Whole Milk (1L)", "price": 68, "category": "Dairy", "createdAt": 1693700005000 }
+  {
+    "id": "mtlvqhybdz7nl3ght1k",
+    "name": "horlics5₹",
+    "price": 54,
+    "category": "Snacks",
+    "createdAt": 1788461391971
+  },
+  {
+    "id": "mtlvpokemsvfmgmi59",
+    "name": "Santoor100g",
+    "price": 40,
+    "category": "Personal Care",
+    "createdAt": 1788461353886
+  }
 ]

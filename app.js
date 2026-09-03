@@ -29,11 +29,26 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-function getNextBillNo() {
-  let counter = parseInt(localStorage.getItem(LS_KEYS.BILL_COUNTER) || '1000');
-  counter++;
-  localStorage.setItem(LS_KEYS.BILL_COUNTER, counter);
-  return counter;
+function getDailyOrderNumber() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateKey = `${year}${month}${day}`;
+  
+  const lastDateKey = localStorage.getItem('ss_last_order_date');
+  let dailyCounter = parseInt(localStorage.getItem('ss_daily_order_counter') || '0', 10);
+  
+  if (lastDateKey !== dateKey) {
+    dailyCounter = 1;
+    localStorage.setItem('ss_last_order_date', dateKey);
+  } else {
+    dailyCounter++;
+  }
+  
+  localStorage.setItem('ss_daily_order_counter', dailyCounter);
+  const seq = String(dailyCounter).padStart(3, '0');
+  return `SS-${dateKey}-${seq}`;
 }
 
 // NAVIGATION
@@ -336,7 +351,7 @@ function placeOrder(e) {
   
   const cart = getFromStorage(LS_KEYS.CART);
   const products = getFromStorage(LS_KEYS.PRODUCTS);
-  const billNo = getNextBillNo();
+  const billNo = getDailyOrderNumber();
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -358,7 +373,7 @@ function placeOrder(e) {
   // Create order object
   const order = {
     id: generateId(),
-    billNo: `#${billNo}`,
+    billNo: billNo,
     date: dateStr,
     time: timeStr,
     timestamp: now.getTime(),
@@ -538,6 +553,52 @@ function switchAdminTab(tab) {
   }
 }
 
+// SERVER SYNC
+async function saveProductsToServer(products) {
+  try {
+    await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(products)
+    });
+  } catch (e) {
+    // offline or static CDN
+  }
+}
+
+async function loadProductsFromServer() {
+  try {
+    const res = await fetch('/api/products');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        saveToStorage(LS_KEYS.PRODUCTS, data);
+        renderDashboard();
+        renderProducts();
+        renderAdminProducts();
+        return;
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+
+  try {
+    const res = await fetch('products.json?v=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        saveToStorage(LS_KEYS.PRODUCTS, data);
+        renderDashboard();
+        renderProducts();
+        renderAdminProducts();
+      }
+    }
+  } catch (e) {
+    // offline
+  }
+}
+
 // PRODUCT MANAGEMENT (ADMIN)
 function addProduct(e) {
   if (e && e.preventDefault) e.preventDefault();
@@ -580,6 +641,7 @@ function addProduct(e) {
   
   products.unshift(newProduct);
   saveToStorage(LS_KEYS.PRODUCTS, products);
+  saveProductsToServer(products);
   
   // Clear form
   const form = document.getElementById('product-form');
@@ -675,6 +737,7 @@ function saveEditProduct(e) {
     products[index].price = price;
     products[index].category = category;
     saveToStorage(LS_KEYS.PRODUCTS, products);
+    saveProductsToServer(products);
     
     closeEditModal();
     renderAdminProducts();
@@ -691,6 +754,7 @@ function deleteProduct(productId) {
   let products = getFromStorage(LS_KEYS.PRODUCTS);
   products = products.filter(p => p.id !== productId);
   saveToStorage(LS_KEYS.PRODUCTS, products);
+  saveProductsToServer(products);
   
   // Also remove from cart
   let cart = getFromStorage(LS_KEYS.CART);
@@ -704,40 +768,116 @@ function deleteProduct(productId) {
   showToast('Product deleted', 'success');
 }
 
-// ORDER HISTORY
+function clearAllProducts() {
+  if (!confirm('Are you sure you want to clear ALL products? This cannot be undone.')) return;
+  saveToStorage(LS_KEYS.PRODUCTS, []);
+  saveToStorage(LS_KEYS.CART, []);
+  saveProductsToServer([]);
+  updateCartCount();
+  renderAdminProducts();
+  renderDashboard();
+  renderProducts();
+  showToast('All products have been cleared!', 'success');
+}
+
+function clearAllOrders() {
+  if (!confirm('Are you sure you want to reset all orders to 0? This cannot be undone.')) return;
+  saveToStorage(LS_KEYS.ORDERS, []);
+  localStorage.setItem('ss_daily_order_counter', '0');
+  renderOrderHistory();
+  renderDashboard();
+  showToast('Orders reset to 0!', 'success');
+}
+
+// ORDER HISTORY (DAILY PATTERNED VIEW)
 function renderOrderHistory() {
   const orders = getFromStorage(LS_KEYS.ORDERS);
   const container = document.getElementById('order-history');
+  const statsBar = document.getElementById('order-stats-bar');
   if (!container) return;
   
+  const now = new Date();
+  const todayStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  
+  const todayOrders = orders.filter(o => o.date === todayStr);
+  const todaySales = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const totalSales = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  
+  if (statsBar) {
+    statsBar.innerHTML = `
+      <div style="background:var(--bg-main);padding:1rem;border-radius:var(--radius);text-align:center;border:1px solid var(--border);">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--primary);">${todayOrders.length}</div>
+        <div style="font-size:0.8rem;color:var(--text-secondary);text-transform:uppercase;font-weight:600;">Today's Orders</div>
+      </div>
+      <div style="background:var(--bg-main);padding:1rem;border-radius:var(--radius);text-align:center;border:1px solid var(--border);">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">${CURRENCY}${todaySales.toFixed(2)}</div>
+        <div style="font-size:0.8rem;color:var(--text-secondary);text-transform:uppercase;font-weight:600;">Today's Sales</div>
+      </div>
+      <div style="background:var(--bg-main);padding:1rem;border-radius:var(--radius);text-align:center;border:1px solid var(--border);">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--secondary);">${orders.length}</div>
+        <div style="font-size:0.8rem;color:var(--text-secondary);text-transform:uppercase;font-weight:600;">Total Orders</div>
+      </div>
+      <div style="background:var(--bg-main);padding:1rem;border-radius:var(--radius);text-align:center;border:1px solid var(--border);">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--primary);">${CURRENCY}${totalSales.toFixed(2)}</div>
+        <div style="font-size:0.8rem;color:var(--text-secondary);text-transform:uppercase;font-weight:600;">Total Sales</div>
+      </div>
+    `;
+  }
+  
   if (orders.length === 0) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-clipboard-list" style="font-size:3rem;color:#ccc;"></i><p style="color:#999;margin-top:1rem;">No orders yet</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-clipboard-list" style="font-size:3rem;color:#ccc;"></i><p style="color:#999;margin-top:1rem;">No orders yet (0 Orders). Customer orders will appear here automatically!</p></div>';
     return;
   }
   
-  container.innerHTML = orders.map(order => `
-    <div class="order-card">
-      <div class="order-header">
-        <div>
-          <span class="order-bill-no">${order.billNo}</span>
-          <span class="order-date">${order.date} ${order.time || ''}</span>
+  // Group orders by date
+  const grouped = {};
+  orders.forEach(order => {
+    const d = order.date || 'Other Date';
+    if (!grouped[d]) grouped[d] = [];
+    grouped[d].push(order);
+  });
+  
+  let html = '';
+  for (const date in grouped) {
+    const dayOrders = grouped[date];
+    const dayTotal = dayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const isToday = date === todayStr;
+    
+    html += `
+      <div style="margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;background:${isToday ? 'var(--primary)' : '#4a5568'};color:white;padding:0.6rem 1rem;border-radius:8px;margin-bottom:0.8rem;font-weight:600;">
+          <span><i class="fas fa-calendar-day"></i> ${isToday ? 'Today — ' : ''}${date}</span>
+          <span>${dayOrders.length} ${dayOrders.length === 1 ? 'Order' : 'Orders'} • ${CURRENCY}${dayTotal.toFixed(2)}</span>
         </div>
-        <div class="order-total-badge">${CURRENCY}${order.total.toFixed(2)}</div>
+        <div style="display:flex;flex-direction:column;gap:0.8rem;">
+          ${dayOrders.map(order => `
+            <div class="order-card" style="border:1px solid var(--border);border-radius:var(--radius);padding:1rem;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+              <div class="order-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.4rem;">
+                <div>
+                  <span class="order-bill-no" style="background:#e8f5e9;color:#2e7d32;padding:0.25rem 0.6rem;border-radius:4px;font-weight:700;font-size:0.9rem;letter-spacing:0.5px;">${order.billNo}</span>
+                  <span class="order-date" style="margin-left:0.6rem;color:#666;font-size:0.85rem;"><i class="far fa-clock"></i> ${order.time || ''}</span>
+                </div>
+                <div class="order-total-badge" style="font-weight:700;font-size:1.1rem;color:var(--primary);">${CURRENCY}${order.total.toFixed(2)}</div>
+              </div>
+              <div class="order-customer" style="font-size:0.9rem;color:#555;margin-bottom:0.6rem;">
+                <span><i class="fas fa-user"></i> <strong>${order.customerName}</strong></span> &nbsp;|&nbsp;
+                <span><i class="fas fa-phone"></i> ${order.customerPhone}</span>
+              </div>
+              <div class="order-items-list" style="border-top:1px dashed #e0e0e0;padding-top:0.6rem;font-size:0.85rem;color:#444;">
+                ${order.items.map(item => `
+                  <div class="order-item-row" style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+                    <span>• ${item.name} × ${item.quantity}</span>
+                    <span style="font-weight:500;">${CURRENCY}${item.total.toFixed(2)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
       </div>
-      <div class="order-customer">
-        <span><i class="fas fa-user"></i> ${order.customerName}</span>
-        <span><i class="fas fa-phone"></i> ${order.customerPhone}</span>
-      </div>
-      <div class="order-items-list">
-        ${order.items.map(item => `
-          <div class="order-item-row">
-            <span>${item.name} × ${item.quantity}</span>
-            <span>${CURRENCY}${item.total.toFixed(2)}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `).join('');
+    `;
+  }
+  container.innerHTML = html;
 }
 
 // TOAST NOTIFICATION
@@ -784,14 +924,7 @@ function getCurrentView() {
   return 'dashboard';
 }
 
-const DEFAULT_PRODUCTS = [
-  { id: 'p1', name: 'Sona Masoori Rice (5kg)', price: 320, category: 'Groceries', createdAt: 1693700000000 },
-  { id: 'p2', name: 'Refined Sugar (1kg)', price: 45, category: 'Groceries', createdAt: 1693700001000 },
-  { id: 'p3', name: 'Good Day Butter Biscuits', price: 30, category: 'Snacks', createdAt: 1693700002000 },
-  { id: 'p4', name: 'Tata Tea Gold (250g)', price: 140, category: 'Beverages', createdAt: 1693700003000 },
-  { id: 'p5', name: 'Dove Bath Soap (Pack of 3)', price: 165, category: 'Personal Care', createdAt: 1693700004000 },
-  { id: 'p6', name: 'Fresh Whole Milk (1L)', price: 68, category: 'Dairy', createdAt: 1693700005000 }
-];
+const DEFAULT_PRODUCTS = [];
 
 // INITIALIZATION
 function initApp() {
@@ -800,13 +933,13 @@ function initApp() {
     localStorage.setItem(LS_KEYS.ADMIN_PASSWORD, DEFAULT_ADMIN_PASSWORD);
   }
 
-  // Seed initial sample products on first visit if store is empty
-  if (!localStorage.getItem('ss_initialized')) {
-    const existing = getFromStorage(LS_KEYS.PRODUCTS);
-    if (existing.length === 0) {
-      saveToStorage(LS_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
-    }
-    localStorage.setItem('ss_initialized', 'true');
+  // One-time auto-wipe of initial sample products & reset orders to 0
+  if (localStorage.getItem('ss_wiped_v3') !== 'true') {
+    saveToStorage(LS_KEYS.PRODUCTS, []);
+    saveToStorage(LS_KEYS.CART, []);
+    saveToStorage(LS_KEYS.ORDERS, []);
+    localStorage.setItem('ss_daily_order_counter', '0');
+    localStorage.setItem('ss_wiped_v3', 'true');
   }
   
   // Set up checkout form handler
@@ -854,6 +987,7 @@ function initApp() {
   }
   
   updateCartCount();
+  loadProductsFromServer();
 }
 
 if (document.readyState === 'loading') {
@@ -888,5 +1022,7 @@ window.removeFromCart = removeFromCart;
 window.updateQuantity = updateQuantity;
 window.filterByCategory = filterByCategory;
 window.filterProducts = filterProducts;
+window.clearAllProducts = clearAllProducts;
+window.clearAllOrders = clearAllOrders;
 
 
