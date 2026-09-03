@@ -898,6 +898,35 @@ function clearAllOrders() {
   showToast('Orders reset to 0!', 'success');
 }
 
+function deleteOrder(orderId) {
+  let orders = getFromStorage(LS_KEYS.ORDERS);
+  const order = orders.find(o => o.id === orderId);
+  const billNo = order ? order.billNo : 'this order';
+  
+  if (!confirm(`Are you sure you want to delete order ${billNo}? This cannot be undone.`)) {
+    return;
+  }
+  
+  orders = orders.filter(o => o.id !== orderId);
+  saveToStorage(LS_KEYS.ORDERS, orders);
+  
+  // Close bill modal if this order was open
+  const modal = document.getElementById('bill-modal');
+  if (modal && modal.style.display !== 'none' && window.modalCurrentOrder && window.modalCurrentOrder.id === orderId) {
+    closeBillModal();
+  }
+  
+  renderOrderHistory();
+  renderDashboard();
+  showToast(`Order ${billNo} deleted successfully`, 'success');
+}
+
+function deleteCurrentModalOrder() {
+  if (window.modalCurrentOrder && window.modalCurrentOrder.id) {
+    deleteOrder(window.modalCurrentOrder.id);
+  }
+}
+
 // ORDER HISTORY (DAILY PATTERNED VIEW)
 function renderOrderHistory() {
   const orders = getFromStorage(LS_KEYS.ORDERS);
@@ -980,7 +1009,10 @@ function renderOrderHistory() {
                   </div>
                 `).join('')}
               </div>
-              <div class="order-actions-row" style="margin-top:0.8rem;padding-top:0.6rem;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;">
+              <div class="order-actions-row" style="margin-top:0.8rem;padding-top:0.6rem;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                <button type="button" class="btn btn-danger" onclick="deleteOrder('${order.id}')" style="padding:0.35rem 0.8rem;font-size:0.82rem;display:inline-flex;align-items:center;gap:0.35rem;margin-right:auto;" title="Delete this order">
+                  <i class="fas fa-trash-alt"></i> Delete Order
+                </button>
                 <button type="button" class="btn btn-primary" onclick="viewOrderBill('${order.id}')" style="padding:0.35rem 0.8rem;font-size:0.82rem;display:inline-flex;align-items:center;gap:0.35rem;">
                   <i class="fas fa-file-invoice"></i> View Bill
                 </button>
@@ -1154,5 +1186,7 @@ window.filterByCategory = filterByCategory;
 window.filterProducts = filterProducts;
 window.clearAllProducts = clearAllProducts;
 window.clearAllOrders = clearAllOrders;
+window.deleteOrder = deleteOrder;
+window.deleteCurrentModalOrder = deleteCurrentModalOrder;
 
 
