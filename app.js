@@ -553,8 +553,50 @@ function switchAdminTab(tab) {
   }
 }
 
-// SERVER SYNC
+// CLOUD & SERVER SYNC (Firebase Realtime Database + Local Server)
+const FIREBASE_DB_URL = 'https://sambasiva-store-default-rtdb.firebaseio.com';
+
+async function saveProductsToCloud(products) {
+  if (!FIREBASE_DB_URL) return;
+  try {
+    const endpoint = FIREBASE_DB_URL.replace(/\/$/, '') + '/products.json';
+    const res = await fetch(endpoint, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(products)
+    });
+    if (res.ok) {
+      console.log('✅ Synced to Firebase Cloud Database');
+      showToast('Live Cloud updated! Visible on all devices.', 'success');
+    }
+  } catch (e) {
+    console.warn('Firebase sync error:', e);
+  }
+}
+
+async function loadProductsFromCloud() {
+  if (!FIREBASE_DB_URL) return false;
+  try {
+    const endpoint = FIREBASE_DB_URL.replace(/\/$/, '') + '/products.json';
+    const res = await fetch(endpoint);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        saveToStorage(LS_KEYS.PRODUCTS, data);
+        renderDashboard();
+        renderProducts();
+        renderAdminProducts();
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn('Firebase load error:', e);
+  }
+  return false;
+}
+
 async function saveProductsToServer(products) {
+  // 1. Local Node server sync
   try {
     await fetch('/api/products', {
       method: 'POST',
@@ -564,9 +606,17 @@ async function saveProductsToServer(products) {
   } catch (e) {
     // offline or static CDN
   }
+
+  // 2. Firebase Cloud sync (for live public site)
+  await saveProductsToCloud(products);
 }
 
 async function loadProductsFromServer() {
+  // 1. Try Firebase Cloud first (for public multi-device sync)
+  const cloudSuccess = await loadProductsFromCloud();
+  if (cloudSuccess) return;
+
+  // 2. Try Local Server
   try {
     const res = await fetch('/api/products');
     if (res.ok) {
@@ -583,6 +633,7 @@ async function loadProductsFromServer() {
     // fallback
   }
 
+  // 3. Fallback: products.json
   try {
     const res = await fetch('products.json?v=' + Date.now());
     if (res.ok) {
