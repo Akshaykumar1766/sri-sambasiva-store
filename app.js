@@ -518,6 +518,10 @@ function isAdminLoggedIn() {
 function renderAdminPanel() {
   renderAdminProducts();
   renderOrderHistory();
+  const cloudInput = document.getElementById('cloud-db-input');
+  if (cloudInput) {
+    cloudInput.value = localStorage.getItem(CLOUD_DB_KEY) || '';
+  }
 }
 
 function switchAdminTab(tab) {
@@ -535,6 +539,127 @@ function switchAdminTab(tab) {
     if (productsTab) productsTab.style.display = 'none';
     if (ordersTab) ordersTab.style.display = 'block';
     if (tabBtns.length > 1) tabBtns[1].classList.add('active');
+  }
+}
+
+const CLOUD_DB_KEY = 'ss_cloud_db_url';
+
+async function fetchProductsFromCloud() {
+  const cloudUrl = localStorage.getItem(CLOUD_DB_KEY);
+  if (cloudUrl) {
+    try {
+      const endpoint = cloudUrl.replace(/\/$/, '') + '/products.json';
+      const res = await fetch(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          saveToStorage(LS_KEYS.PRODUCTS, data);
+          renderDashboard();
+          renderProducts();
+          renderAdminProducts();
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Cloud sync offline:', e);
+    }
+  }
+  
+  // Fallback: load central products.json file
+  try {
+    const res = await fetch('products.json?v=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const current = getFromStorage(LS_KEYS.PRODUCTS, []);
+        if (current.length === 0 || !localStorage.getItem('ss_device_edited')) {
+          saveToStorage(LS_KEYS.PRODUCTS, data);
+          renderDashboard();
+          renderProducts();
+          renderAdminProducts();
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return false;
+}
+
+async function saveProductsToCloud(products) {
+  localStorage.setItem('ss_device_edited', 'true');
+  const cloudUrl = localStorage.getItem(CLOUD_DB_KEY);
+  if (cloudUrl) {
+    try {
+      const endpoint = cloudUrl.replace(/\/$/, '') + '/products.json';
+      await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(products)
+      });
+      showToast('Synced to Cloud database! Available on all devices.', 'success');
+    } catch (e) {
+      console.error('Cloud sync error:', e);
+    }
+  }
+}
+
+function exportProducts() {
+  const products = getFromStorage(LS_KEYS.PRODUCTS);
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(products, null, 2));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", "products.json");
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+  showToast('products.json downloaded! Upload this to GitHub so all devices see it.', 'success');
+}
+
+function importProducts() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (Array.isArray(imported)) {
+          saveToStorage(LS_KEYS.PRODUCTS, imported);
+          saveProductsToCloud(imported);
+          renderAdminProducts();
+          renderDashboard();
+          renderProducts();
+          showToast(`Imported ${imported.length} products successfully!`, 'success');
+        } else {
+          showToast('Invalid JSON file format', 'error');
+        }
+      } catch (err) {
+        showToast('Error parsing products file', 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function saveCloudDbUrl() {
+  const input = document.getElementById('cloud-db-input');
+  if (!input) return;
+  const url = input.value.trim();
+  if (url) {
+    localStorage.setItem(CLOUD_DB_KEY, url);
+    showToast('Cloud Database connected! Syncing products...', 'success');
+    const products = getFromStorage(LS_KEYS.PRODUCTS);
+    saveProductsToCloud(products).then(() => {
+      fetchProductsFromCloud();
+    });
+  } else {
+    localStorage.removeItem(CLOUD_DB_KEY);
+    showToast('Cloud Database URL removed', 'success');
   }
 }
 
@@ -580,6 +705,7 @@ function addProduct(e) {
   
   products.unshift(newProduct);
   saveToStorage(LS_KEYS.PRODUCTS, products);
+  saveProductsToCloud(products);
   
   // Clear form
   const form = document.getElementById('product-form');
@@ -675,6 +801,7 @@ function saveEditProduct(e) {
     products[index].price = price;
     products[index].category = category;
     saveToStorage(LS_KEYS.PRODUCTS, products);
+    saveProductsToCloud(products);
     
     closeEditModal();
     renderAdminProducts();
@@ -691,6 +818,7 @@ function deleteProduct(productId) {
   let products = getFromStorage(LS_KEYS.PRODUCTS);
   products = products.filter(p => p.id !== productId);
   saveToStorage(LS_KEYS.PRODUCTS, products);
+  saveProductsToCloud(products);
   
   // Also remove from cart
   let cart = getFromStorage(LS_KEYS.CART);
@@ -854,6 +982,7 @@ function initApp() {
   }
   
   updateCartCount();
+  fetchProductsFromCloud();
 }
 
 if (document.readyState === 'loading') {
@@ -888,4 +1017,9 @@ window.removeFromCart = removeFromCart;
 window.updateQuantity = updateQuantity;
 window.filterByCategory = filterByCategory;
 window.filterProducts = filterProducts;
+window.exportProducts = exportProducts;
+window.importProducts = importProducts;
+window.saveCloudDbUrl = saveCloudDbUrl;
+window.fetchProductsFromCloud = fetchProductsFromCloud;
+
 
