@@ -405,10 +405,7 @@ function placeOrder(e) {
   showToast('Order placed successfully!', 'success');
 }
 
-function renderBill(order) {
-  const billContainer = document.getElementById('bill-container');
-  if (!billContainer) return;
-  
+function generateBillHtml(order) {
   let itemsHtml = order.items.map((item, i) => `
     <tr>
       <td>${i + 1}</td>
@@ -419,7 +416,7 @@ function renderBill(order) {
     </tr>
   `).join('');
   
-  billContainer.innerHTML = `
+  return `
     <div class="bill-header">
       <h2>🏪 ${STORE_NAME}</h2>
       <p class="bill-subtitle">Fancy & General Store</p>
@@ -428,7 +425,7 @@ function renderBill(order) {
     <div class="bill-info">
       <div><strong>Bill No:</strong> ${order.billNo}</div>
       <div><strong>Date:</strong> ${order.date}</div>
-      <div><strong>Time:</strong> ${order.time}</div>
+      <div><strong>Time:</strong> ${order.time || ''}</div>
       <div><strong>Customer:</strong> ${order.customerName}</div>
       <div><strong>Phone:</strong> ${order.customerPhone}</div>
     </div>
@@ -457,6 +454,12 @@ function renderBill(order) {
   `;
 }
 
+function renderBill(order) {
+  const billContainer = document.getElementById('bill-container');
+  if (!billContainer) return;
+  billContainer.innerHTML = generateBillHtml(order);
+}
+
 function printBill() {
   window.print();
 }
@@ -467,7 +470,7 @@ function sendToWhatsApp() {
   
   let message = `🛒 *NEW ORDER - ${STORE_NAME}*\n`;
   message += `📋 Bill No: ${order.billNo}\n`;
-  message += `📅 Date: ${order.date} ${order.time}\n\n`;
+  message += `📅 Date: ${order.date} ${order.time || ''}\n\n`;
   message += `👤 *Customer:* ${order.customerName}\n`;
   message += `📞 *Phone:* ${order.customerPhone}\n\n`;
   message += `📦 *ORDER DETAILS:*\n`;
@@ -484,6 +487,61 @@ function sendToWhatsApp() {
   const encoded = encodeURIComponent(message);
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`;
   window.open(url, '_blank');
+}
+
+// ADMIN BILL VIEWER FUNCTIONS
+function viewOrderBill(orderId) {
+  const orders = getFromStorage(LS_KEYS.ORDERS);
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  
+  window.modalCurrentOrder = order;
+  window.currentOrder = order;
+  
+  const container = document.getElementById('modal-bill-container');
+  if (container) {
+    container.innerHTML = generateBillHtml(order);
+  }
+  
+  const modal = document.getElementById('bill-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeBillModal() {
+  const modal = document.getElementById('bill-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function printModalBill() {
+  if (window.modalCurrentOrder) {
+    window.currentOrder = window.modalCurrentOrder;
+    renderBill(window.modalCurrentOrder);
+  }
+  window.print();
+}
+
+function sendModalBillToWhatsApp() {
+  if (window.modalCurrentOrder) {
+    window.currentOrder = window.modalCurrentOrder;
+    sendToWhatsApp();
+  }
+}
+
+function printOrderBill(orderId) {
+  const orders = getFromStorage(LS_KEYS.ORDERS);
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  window.currentOrder = order;
+  renderBill(order);
+  window.print();
+}
+
+function sendOrderBillToWhatsApp(orderId) {
+  const orders = getFromStorage(LS_KEYS.ORDERS);
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  window.currentOrder = order;
+  sendToWhatsApp();
 }
 
 // ADMIN FUNCTIONS
@@ -922,6 +980,17 @@ function renderOrderHistory() {
                   </div>
                 `).join('')}
               </div>
+              <div class="order-actions-row" style="margin-top:0.8rem;padding-top:0.6rem;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary" onclick="viewOrderBill('${order.id}')" style="padding:0.35rem 0.8rem;font-size:0.82rem;display:inline-flex;align-items:center;gap:0.35rem;">
+                  <i class="fas fa-file-invoice"></i> View Bill
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="printOrderBill('${order.id}')" style="padding:0.35rem 0.8rem;font-size:0.82rem;display:inline-flex;align-items:center;gap:0.35rem;">
+                  <i class="fas fa-print"></i> Print
+                </button>
+                <button type="button" class="btn-whatsapp" onclick="sendOrderBillToWhatsApp('${order.id}')" style="padding:0.35rem 0.8rem;font-size:0.82rem;display:inline-flex;align-items:center;gap:0.35rem;">
+                  <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
+              </div>
             </div>
           `).join('')}
         </div>
@@ -1027,6 +1096,10 @@ function initApp() {
     if (event.target === editModal) {
       closeEditModal();
     }
+    
+    if (event.target === billModal) {
+      closeBillModal();
+    }
   });
   
   // Handle hash navigation
@@ -1066,6 +1139,12 @@ window.closeAdminLogin = closeAdminLogin;
 window.closeEditModal = closeEditModal;
 window.printBill = printBill;
 window.sendToWhatsApp = sendToWhatsApp;
+window.viewOrderBill = viewOrderBill;
+window.closeBillModal = closeBillModal;
+window.printModalBill = printModalBill;
+window.sendModalBillToWhatsApp = sendModalBillToWhatsApp;
+window.printOrderBill = printOrderBill;
+window.sendOrderBillToWhatsApp = sendOrderBillToWhatsApp;
 window.toggleMobileMenu = toggleMobileMenu;
 window.closeMobileMenu = closeMobileMenu;
 window.addToCart = addToCart;
