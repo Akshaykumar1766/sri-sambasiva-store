@@ -149,7 +149,7 @@
                 <div style="flex:1;min-width:300px;">
                     <div class="admin-panel-card" style="background:white;padding:1.5rem;border-radius:var(--radius);box-shadow:var(--shadow);">
                         <h3 style="margin-bottom:1rem;">Customer Details</h3>
-                        <form id="checkout-form">
+                        <form id="checkout-form" onsubmit="return placeOrder(event)">
                             <div class="form-group">
                                 <label for="customer-name">Full Name *</label>
                                 <input type="text" id="customer-name" required placeholder="Enter your name">
@@ -223,7 +223,7 @@
             <div id="admin-products-tab">
                 <div class="admin-panel-card" style="background:white;padding:1.5rem;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:2rem;">
                     <h3 style="margin-bottom:1rem;"><i class="fas fa-plus-circle"></i> Add New Product</h3>
-                    <form id="product-form">
+                    <form id="product-form" onsubmit="return addProduct(event)">
                         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:1rem;">
                             <div class="form-group">
                                 <label for="product-name">Product Name *</label>

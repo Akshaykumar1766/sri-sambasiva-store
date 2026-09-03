@@ -540,15 +540,32 @@ function switchAdminTab(tab) {
 
 // PRODUCT MANAGEMENT (ADMIN)
 function addProduct(e) {
-  e.preventDefault();
+  if (e && e.preventDefault) e.preventDefault();
   
-  const name = document.getElementById('product-name').value.trim();
-  const price = parseFloat(document.getElementById('product-price').value);
-  const category = document.getElementById('product-category').value;
+  const nameInput = document.getElementById('product-name');
+  const priceInput = document.getElementById('product-price');
+  const categoryInput = document.getElementById('product-category');
   
-  if (!name || isNaN(price) || price <= 0) {
-    showToast('Please fill in all fields correctly', 'error');
-    return;
+  const name = nameInput ? nameInput.value.trim() : '';
+  const price = priceInput ? parseFloat(priceInput.value) : NaN;
+  const category = categoryInput ? categoryInput.value : '';
+  
+  if (!name) {
+    showToast('Please enter a product name', 'error');
+    if (nameInput) nameInput.focus();
+    return false;
+  }
+  
+  if (isNaN(price) || price <= 0) {
+    showToast('Please enter a valid price', 'error');
+    if (priceInput) priceInput.focus();
+    return false;
+  }
+  
+  if (!category) {
+    showToast('Please select a category', 'error');
+    if (categoryInput) categoryInput.focus();
+    return false;
   }
   
   const products = getFromStorage(LS_KEYS.PRODUCTS);
@@ -561,14 +578,18 @@ function addProduct(e) {
     createdAt: Date.now()
   };
   
-  products.push(newProduct);
+  products.unshift(newProduct);
   saveToStorage(LS_KEYS.PRODUCTS, products);
   
   // Clear form
-  document.getElementById('product-form').reset();
+  const form = document.getElementById('product-form');
+  if (form) form.reset();
   
   renderAdminProducts();
+  renderDashboard();
+  renderProducts();
   showToast(`"${name}" added successfully!`, 'success');
+  return false;
 }
 
 function renderAdminProducts() {
@@ -582,7 +603,14 @@ function renderAdminProducts() {
   }
   
   tbody.innerHTML = products.map(product => {
-    const imageUrl = window.getProductImageUrl ? window.getProductImageUrl(product.name, product.category) : '';
+    let imageUrl = '';
+    try {
+      if (window.getProductImageUrl) {
+        imageUrl = window.getProductImageUrl(product.name, product.category);
+      }
+    } catch (err) {
+      console.error('Error generating image:', err);
+    }
     return `
       <tr>
         <td><img src="${imageUrl}" alt="${product.name}" class="admin-product-img"></td>
@@ -622,7 +650,9 @@ function closeEditModal() {
   if (editModal) editModal.style.display = 'none';
 }
 
-function saveEditProduct() {
+function saveEditProduct(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  
   const id = document.getElementById('edit-product-id').value;
   const name = document.getElementById('edit-product-name').value.trim();
   const price = parseFloat(document.getElementById('edit-product-price').value);
@@ -630,14 +660,13 @@ function saveEditProduct() {
   
   if (!name || isNaN(price) || price <= 0) {
     showToast('Please fill in all fields correctly', 'error');
-    return;
+    return false;
   }
   
   const products = getFromStorage(LS_KEYS.PRODUCTS);
   const index = products.findIndex(p => p.id === id);
   
   if (index !== -1) {
-    // Clear image cache for old product if name changed
     if (window.clearImageCache) {
       window.clearImageCache(products[index].name + products[index].category);
     }
@@ -649,8 +678,11 @@ function saveEditProduct() {
     
     closeEditModal();
     renderAdminProducts();
+    renderDashboard();
+    renderProducts();
     showToast('Product updated successfully!', 'success');
   }
+  return false;
 }
 
 function deleteProduct(productId) {
@@ -667,6 +699,8 @@ function deleteProduct(productId) {
   updateCartCount();
   
   renderAdminProducts();
+  renderDashboard();
+  renderProducts();
   showToast('Product deleted', 'success');
 }
 
@@ -750,22 +784,42 @@ function getCurrentView() {
   return 'dashboard';
 }
 
+const DEFAULT_PRODUCTS = [
+  { id: 'p1', name: 'Sona Masoori Rice (5kg)', price: 320, category: 'Groceries', createdAt: 1693700000000 },
+  { id: 'p2', name: 'Refined Sugar (1kg)', price: 45, category: 'Groceries', createdAt: 1693700001000 },
+  { id: 'p3', name: 'Good Day Butter Biscuits', price: 30, category: 'Snacks', createdAt: 1693700002000 },
+  { id: 'p4', name: 'Tata Tea Gold (250g)', price: 140, category: 'Beverages', createdAt: 1693700003000 },
+  { id: 'p5', name: 'Dove Bath Soap (Pack of 3)', price: 165, category: 'Personal Care', createdAt: 1693700004000 },
+  { id: 'p6', name: 'Fresh Whole Milk (1L)', price: 68, category: 'Dairy', createdAt: 1693700005000 }
+];
+
 // INITIALIZATION
-document.addEventListener('DOMContentLoaded', function() {
+function initApp() {
   // Set default admin password if not exists
   if (!localStorage.getItem(LS_KEYS.ADMIN_PASSWORD)) {
     localStorage.setItem(LS_KEYS.ADMIN_PASSWORD, DEFAULT_ADMIN_PASSWORD);
+  }
+
+  // Seed initial sample products on first visit if store is empty
+  if (!localStorage.getItem('ss_initialized')) {
+    const existing = getFromStorage(LS_KEYS.PRODUCTS);
+    if (existing.length === 0) {
+      saveToStorage(LS_KEYS.PRODUCTS, DEFAULT_PRODUCTS);
+    }
+    localStorage.setItem('ss_initialized', 'true');
   }
   
   // Set up checkout form handler
   const checkoutForm = document.getElementById('checkout-form');
   if (checkoutForm) {
+    checkoutForm.onsubmit = placeOrder;
     checkoutForm.addEventListener('submit', placeOrder);
   }
   
   // Set up product form handler  
   const productForm = document.getElementById('product-form');
   if (productForm) {
+    productForm.onsubmit = addProduct;
     productForm.addEventListener('submit', addProduct);
   }
   
@@ -800,9 +854,38 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   updateCartCount();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 window.addEventListener('hashchange', function() {
   const hash = window.location.hash.slice(1);
   if (hash) navigateTo(hash);
 });
+
+// Explicit global exports for HTML event bindings
+window.addProduct = addProduct;
+window.saveEditProduct = saveEditProduct;
+window.editProduct = editProduct;
+window.deleteProduct = deleteProduct;
+window.placeOrder = placeOrder;
+window.navigateTo = navigateTo;
+window.adminLogin = adminLogin;
+window.adminLogout = adminLogout;
+window.switchAdminTab = switchAdminTab;
+window.closeAdminLogin = closeAdminLogin;
+window.closeEditModal = closeEditModal;
+window.printBill = printBill;
+window.sendToWhatsApp = sendToWhatsApp;
+window.toggleMobileMenu = toggleMobileMenu;
+window.closeMobileMenu = closeMobileMenu;
+window.addToCart = addToCart;
+window.removeFromCart = removeFromCart;
+window.updateQuantity = updateQuantity;
+window.filterByCategory = filterByCategory;
+window.filterProducts = filterProducts;
+
