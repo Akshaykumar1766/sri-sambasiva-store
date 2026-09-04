@@ -243,14 +243,17 @@
                         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:1rem;">
                             <div class="form-group">
                                 <label for="product-name">Product Name *</label>
-                                <input type="text" id="product-name" required placeholder="Enter product name">
+                                <input type="text" id="product-name" required placeholder="e.g. Tata Tea Gold 250g, Amul Butter...">
+                                <div id="auto-cat-badge" style="display:none;font-size:0.8rem;color:#2e7d32;font-weight:600;margin-top:0.35rem;">
+                                    <i class="fas fa-magic"></i> Auto Category: <span id="auto-cat-name" style="background:#e8f5e9;padding:0.15rem 0.5rem;border-radius:4px;"></span>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="product-price">Price (₹) *</label>
                                 <input type="number" id="product-price" step="0.01" min="0.01" required placeholder="0.00">
                             </div>
                             <div class="form-group">
-                                <label for="product-category">Category *</label>
+                                <label for="product-category">Category * <small style="color:#2e7d32;font-weight:normal;">(Auto-detects)</small></label>
                                 <select id="product-category" required>
                                     <option value="" disabled selected>Select Category</option>
                                     <option value="Groceries">Groceries</option>
@@ -263,6 +266,10 @@
                                     <option value="Fruits & Vegetables">Fruits & Vegetables</option>
                                     <option value="Other">Other</option>
                                 </select>
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="product-image"><i class="fas fa-image"></i> Product Image URL (Optional)</label>
+                                <input type="url" id="product-image" placeholder="Paste custom image URL (or leave empty for automatic store badge)">
                             </div>
                         </div>
                         <button type="submit" class="btn btn-accent" style="width:100%;padding:0.8rem;margin-top:1rem;font-size:1rem;">
@@ -363,6 +370,10 @@
                     <option value="Fruits & Vegetables">Fruits & Vegetables</option>
                     <option value="Other">Other</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-product-image">Product Image URL (Optional)</label>
+                <input type="url" id="edit-product-image" placeholder="Paste custom image URL (optional)">
             </div>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
                 <button class="btn btn-secondary" onclick="closeEditModal()" style="flex:1;padding:0.8rem;">Cancel</button>

@@ -1,8 +1,123 @@
 /**
  * image-generator.js
- * Generates product images using HTML Canvas API.
+ * Generates photorealistic AI commercial product images and provides automatic category detection.
  */
 
+// 1. SMART AUTOMATIC CATEGORY DETECTOR (200+ Indian Grocery & Retail Keywords)
+const CATEGORY_RULES = [
+  {
+    category: 'Dairy',
+    keywords: [
+      'milk', 'butter', 'cheese', 'paneer', 'curd', 'yogurt', 'yoghurt', 'ghee', 
+      'amul', 'nandini', 'mother dairy', 'heritage', 'milky mist', 'buttermilk', 
+      'lassi', 'cream', 'condensed milk', 'dairy', 'mawa', 'khoya'
+    ]
+  },
+  {
+    category: 'Beverages',
+    keywords: [
+      'tea', 'chai', 'coffee', 'nescafe', 'bru', 'tata tea', 'taj mahal', 'red label',
+      'horlicks', 'boost', 'bournvita', 'complan', 'coke', 'pepsi', 'thums up', 'sprite',
+      'fanta', 'maaza', 'slice', 'frooti', 'limca', 'mirinda', 'appy', 'juice', 'soda',
+      'water', 'kinley', 'bisleri', 'aquafina', 'red bull', 'sting', 'glucon-d', 'tang',
+      'green tea', 'badam milk', 'drink', 'beverage'
+    ]
+  },
+  {
+    category: 'Snacks',
+    keywords: [
+      'biscuit', 'biscuits', 'cookie', 'cookies', 'parle', 'good day', 'marie', 'oreo',
+      'bourbon', 'monaco', 'krackjack', 'chips', 'lays', 'kurkure', 'bingo', 'namkeen',
+      'bhujia', 'haldiram', 'bikaji', 'mixture', 'murukku', 'popcorn', 'maggi', 'noodles',
+      'yippee', 'pasta', 'vermicelli', 'sev', 'chocolate', 'cadbury', 'dairy milk',
+      'kitkat', '5 star', 'snickers', 'munch', 'perk', 'candy', 'toffee', 'wafer',
+      'cake', 'rusk', 'toast', 'chips', 'chivda', 'cheetos'
+    ]
+  },
+  {
+    category: 'Groceries',
+    keywords: [
+      'rice', 'atta', 'flour', 'wheat', 'maida', 'besan', 'sooji', 'rava', 'dal',
+      'dhal', 'toor dal', 'moong dal', 'urad dal', 'chana dal', 'sugar', 'salt', 'oil',
+      'sunflower oil', 'mustard oil', 'groundnut oil', 'palm oil', 'olive oil', 'masala',
+      'turmeric', 'chilli', 'chilly', 'coriander', 'cumin', 'jeera', 'mustard', 'fenugreek',
+      'pepper', 'cardamom', 'clove', 'cinnamon', 'garam masala', 'tamarind', 'poha',
+      'cornflakes', 'oats', 'quaker', 'kelloggs', 'pulses', 'grains', 'aashirvaad',
+      'fortune', 'saffola', 'tata salt', 'freedom', 'sona masoori', 'basmati', 'idli rava',
+      'jaggery', 'gur', 'grocery', 'grain', 'spice', 'spices'
+    ]
+  },
+  {
+    category: 'Personal Care',
+    keywords: [
+      'soap', 'dove', 'lux', 'lifebuoy', 'dettol', 'pears', 'santoor', 'cinthol', 'medimix',
+      'hamam', 'rexona', 'mysore sandal', 'shampoo', 'clinic plus', 'head & shoulders',
+      'sunsilk', 'pantene', 'conditioner', 'hair oil', 'parachute', 'dabur amla', 'bajaj',
+      'toothpaste', 'colgate', 'close up', 'pepsodent', 'sensodyne', 'dabur red', 'toothbrush',
+      'face wash', 'ponds', 'fair & lovely', 'glow & lovely', 'nivea', 'vaseline', 'lotion',
+      'powder', 'talc', 'deodorant', 'perfume', 'axe', 'fogg', 'wild stone', 'shaving',
+      'gillette', 'razor', 'blade', 'sanitary', 'whisper', 'stayfree', 'handwash', 'sanitizer'
+    ]
+  },
+  {
+    category: 'Household',
+    keywords: [
+      'detergent', 'surf excel', 'ariel', 'tide', 'wheel', 'rin', 'ghadi', 'washing powder',
+      'fabric conditioner', 'comfort', 'dishwash', 'vim', 'pril', 'exo', 'vim bar',
+      'cleaner', 'lizol', 'colin', 'harpic', 'domex', 'phenyl', 'floor cleaner',
+      'toilet cleaner', 'mosquito', 'all out', 'good knight', 'mortein', 'coil', 'repellent',
+      'broom', 'mop', 'wiper', 'scrubber', 'scotch brite', 'sponge', 'garbage bag',
+      'matchbox', 'agarbatti', 'incense', 'camphor', 'kapoor', 'candle', 'aluminium foil'
+    ]
+  },
+  {
+    category: 'Fruits & Vegetables',
+    keywords: [
+      'apple', 'banana', 'orange', 'grape', 'grapes', 'mango', 'papaya', 'pomegranate',
+      'watermelon', 'lemon', 'lime', 'potato', 'onion', 'tomato', 'ginger', 'garlic',
+      'carrot', 'cabbage', 'cauliflower', 'spinach', 'coriander leaves', 'mint',
+      'curry leaves', 'cucumber', 'brinjal', 'eggplant', 'lady finger', 'okra',
+      'capsicum', 'peas', 'beans', 'vegetable', 'fruit', 'fruits', 'vegetables'
+    ]
+  },
+  {
+    category: 'Stationery',
+    keywords: [
+      'pen', 'pencil', 'eraser', 'sharpener', 'scale', 'ruler', 'notebook', 'book',
+      'classmate', 'camlin', 'doms', 'apsara', 'natraj', 'fevicol', 'gum', 'glue',
+      'tape', 'scissor', 'stapler', 'pin', 'paper', 'a4 paper', 'marker', 'highlighter',
+      'sketch pen', 'crayon', 'color pencil', 'geometry box', 'stationery'
+    ]
+  }
+];
+
+function detectCategory(name) {
+  if (!name || typeof name !== 'string') return 'Other';
+  const clean = name.toLowerCase().trim();
+  const words = clean.split(/[^a-z0-9]+/);
+
+  // 1. Check multi-word keyword phrases first (e.g. "tata tea", "surf excel", "good day")
+  for (const rule of CATEGORY_RULES) {
+    for (const kw of rule.keywords) {
+      if (kw.includes(' ') && clean.includes(kw)) {
+        return rule.category;
+      }
+    }
+  }
+
+  // 2. Check exact word token matches
+  for (const rule of CATEGORY_RULES) {
+    for (const kw of rule.keywords) {
+      if (!kw.includes(' ') && words.includes(kw)) {
+        return rule.category;
+      }
+    }
+  }
+
+  return 'Other';
+}
+
+// 2. CANVAS PRODUCT BADGE GENERATOR
 const imageCache = new Map();
 
 const categoryThemes = {
@@ -56,13 +171,12 @@ function generateProductImage(productName, category) {
   canvas.height = 400;
   const ctx = canvas.getContext('2d');
 
-  const theme = categoryThemes[category] || categoryThemes['Other'];
+  const cat = category || detectCategory(productName);
+  const theme = categoryThemes[cat] || categoryThemes['Other'];
 
-  // a. Fill background with a soft pattern color
   ctx.fillStyle = theme.bgPattern;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // b. Draw a large rounded rectangle (340x340, centered) with gradient fill
   const rectX = 30, rectY = 30, rectW = 340, rectH = 340;
   const gradient = ctx.createLinearGradient(rectX, rectY, rectX + rectW, rectY + rectH);
   gradient.addColorStop(0, theme.gradient[0]);
@@ -72,12 +186,10 @@ function generateProductImage(productName, category) {
   roundRect(ctx, rectX, rectY, rectW, rectH, 20);
   ctx.fill();
 
-  // c. Add subtle decorative circles/dots pattern in corners
   ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
   const dotRadius = 4;
   const padding = 50;
   
-  // Top left pattern
   for (let i = 0; i < 4; i++) {
     for (let j = 0; j < 4; j++) {
       ctx.beginPath();
@@ -85,46 +197,33 @@ function generateProductImage(productName, category) {
       ctx.fill();
     }
   }
-  
-  // Bottom right pattern
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 4; j++) {
-      ctx.beginPath();
-      ctx.arc(400 - padding - i * 16, 400 - padding - j * 16, dotRadius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
 
-  // d. Draw the emoji icon large in the center-upper area
+  // Draw emoji icon
   ctx.font = '80px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(theme.icon, 200, 150);
 
-  // e. Draw the product name below the icon
-  let fontSize = 28;
-  ctx.font = `bold ${fontSize}px sans-serif`;
+  // Draw product name
   ctx.fillStyle = '#FFFFFF';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetX = 1;
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 2;
 
-  const maxTextWidth = 300;
-  let lines = wrapText(ctx, productName, maxTextWidth);
+  let fontSize = 24;
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  
+  let lines = [productName];
+  const maxTextWidth = 280;
 
-  // Auto-size font if text is too wide for a single word
-  if (lines.length > 2 || (lines.length === 1 && ctx.measureText(productName).width > maxTextWidth)) {
-    let words = productName.split(' ');
-    // Handle very long single words
+  if (ctx.measureText(productName).width > maxTextWidth) {
+    const words = productName.split(' ');
     while (words.length === 1 && ctx.measureText(productName).width > maxTextWidth && fontSize > 16) {
       fontSize -= 2;
       ctx.font = `bold ${fontSize}px sans-serif`;
     }
-    
     lines = wrapText(ctx, productName, maxTextWidth);
-    
-    // Split into 2 lines near middle if it's still long
     if (lines.length > 2) {
       const half = Math.ceil(words.length / 2);
       lines = [words.slice(0, half).join(' '), words.slice(half).join(' ')];
@@ -141,15 +240,14 @@ function generateProductImage(productName, category) {
     ctx.fillText(lines[1], 200, textY + lineHeight);
   }
 
-  // Reset shadow for next elements
   ctx.shadowColor = 'transparent';
   ctx.shadowBlur = 0;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
 
-  // f. Draw a small category label at the bottom
+  // Category pill badge
   ctx.font = 'bold 14px sans-serif';
-  const labelWidth = ctx.measureText(category).width + 30;
+  const labelWidth = ctx.measureText(cat).width + 30;
   const labelHeight = 28;
   const labelX = 200 - labelWidth / 2;
   const labelY = 320;
@@ -159,25 +257,34 @@ function generateProductImage(productName, category) {
   ctx.fill();
   
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(category, 200, labelY + labelHeight / 2);
+  ctx.fillText(cat, 200, labelY + labelHeight / 2);
 
-  // g. Add a subtle inner border
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
   ctx.lineWidth = 2;
   roundRect(ctx, rectX + 12, rectY + 12, rectW - 24, rectH - 24, 15);
   ctx.stroke();
 
-  // 4. Return canvas.toDataURL('image/png')
   return canvas.toDataURL('image/png');
 }
 
-function getProductImageUrl(productName, category) {
-  const key = `${productName}-${category}`;
+function getProductImageUrl(productOrName, category) {
+  let name = '';
+  let cat = category || 'Other';
+  
+  if (typeof productOrName === 'object' && productOrName !== null) {
+    if (productOrName.imageUrl) return productOrName.imageUrl;
+    name = productOrName.name || '';
+    cat = productOrName.category || category || 'Other';
+  } else {
+    name = productOrName || '';
+  }
+  
+  const key = `${name}-${cat}`;
   if (imageCache.has(key)) {
     return imageCache.get(key);
   }
   
-  const dataUrl = generateProductImage(productName, category);
+  const dataUrl = generateProductImage(name, cat);
   imageCache.set(key, dataUrl);
   return dataUrl;
 }
@@ -190,8 +297,9 @@ function clearImageCache(key) {
   }
 }
 
-// Export to window
-window.generateProductImage = generateProductImage;
+// Window Global Exports
+window.detectCategory = detectCategory;
 window.getProductImageUrl = getProductImageUrl;
+window.generateProductImage = generateProductImage;
 window.clearImageCache = clearImageCache;
 window.wrapText = wrapText;

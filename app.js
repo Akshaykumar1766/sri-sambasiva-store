@@ -172,7 +172,7 @@ function filterProducts() {
 function createProductCard(product) {
   const cart = getFromStorage(LS_KEYS.CART);
   const inCart = cart.find(c => c.productId === product.id);
-  const imageUrl = window.getProductImageUrl ? window.getProductImageUrl(product.name, product.category) : '';
+  const imageUrl = product.imageUrl || (window.getProductImageUrl ? window.getProductImageUrl(product.name, product.category) : '');
   
   return `
     <div class="product-card animate-slideUp">
@@ -274,7 +274,7 @@ function renderCart() {
     
     const itemTotal = product.price * cartItem.quantity;
     total += itemTotal;
-    const imageUrl = window.getProductImageUrl ? window.getProductImageUrl(product.name, product.category) : '';
+    const imageUrl = product.imageUrl || (window.getProductImageUrl ? window.getProductImageUrl(product.name, product.category) : '');
     
     return `
       <div class="cart-item">
@@ -715,10 +715,12 @@ function addProduct(e) {
   const nameInput = document.getElementById('product-name');
   const priceInput = document.getElementById('product-price');
   const categoryInput = document.getElementById('product-category');
+  const imageInput = document.getElementById('product-image');
   
   const name = nameInput ? nameInput.value.trim() : '';
   const price = priceInput ? parseFloat(priceInput.value) : NaN;
-  const category = categoryInput ? categoryInput.value : '';
+  let category = categoryInput ? categoryInput.value : '';
+  let customImageUrl = imageInput ? imageInput.value.trim() : '';
   
   if (!name) {
     showToast('Please enter a product name', 'error');
@@ -732,11 +734,18 @@ function addProduct(e) {
     return false;
   }
   
-  if (!category) {
-    showToast('Please select a category', 'error');
-    if (categoryInput) categoryInput.focus();
-    return false;
+  // Auto-detect category automatically if not selected
+  if (!category && window.detectCategory) {
+    category = window.detectCategory(name);
+    if (categoryInput) categoryInput.value = category;
   }
+  
+  if (!category) {
+    category = 'Other';
+  }
+
+  // Custom image URL if provided
+  const imageUrl = customImageUrl || '';
   
   const products = getFromStorage(LS_KEYS.PRODUCTS);
   
@@ -745,6 +754,7 @@ function addProduct(e) {
     name,
     price,
     category,
+    imageUrl,
     createdAt: Date.now()
   };
   
@@ -752,9 +762,11 @@ function addProduct(e) {
   saveToStorage(LS_KEYS.PRODUCTS, products);
   saveProductsToServer(products);
   
-  // Clear form
+  // Clear form & auto-detect badge
   const form = document.getElementById('product-form');
   if (form) form.reset();
+  const autoBadge = document.getElementById('auto-cat-badge');
+  if (autoBadge) autoBadge.style.display = 'none';
   
   renderAdminProducts();
   renderDashboard();
@@ -774,14 +786,8 @@ function renderAdminProducts() {
   }
   
   tbody.innerHTML = products.map(product => {
-    let imageUrl = '';
-    try {
-      if (window.getProductImageUrl) {
-        imageUrl = window.getProductImageUrl(product.name, product.category);
-      }
-    } catch (err) {
-      console.error('Error generating image:', err);
-    }
+    const imageUrl = product.imageUrl || (window.getProductImageUrl ? window.getProductImageUrl(product.name, product.category) : '');
+
     return `
       <tr>
         <td><img src="${imageUrl}" alt="${product.name}" class="admin-product-img"></td>
@@ -811,6 +817,8 @@ function editProduct(productId) {
   document.getElementById('edit-product-name').value = product.name;
   document.getElementById('edit-product-price').value = product.price;
   document.getElementById('edit-product-category').value = product.category;
+  const editImg = document.getElementById('edit-product-image');
+  if (editImg) editImg.value = product.imageUrl || '';
   
   const editModal = document.getElementById('edit-modal');
   if (editModal) editModal.style.display = 'flex';
@@ -827,12 +835,19 @@ function saveEditProduct(e) {
   const id = document.getElementById('edit-product-id').value;
   const name = document.getElementById('edit-product-name').value.trim();
   const price = parseFloat(document.getElementById('edit-product-price').value);
-  const category = document.getElementById('edit-product-category').value;
+  let category = document.getElementById('edit-product-category').value;
+  const editImg = document.getElementById('edit-product-image');
+  let customImg = editImg ? editImg.value.trim() : '';
   
   if (!name || isNaN(price) || price <= 0) {
     showToast('Please fill in all fields correctly', 'error');
     return false;
   }
+
+  if (!category && window.detectCategory) {
+    category = window.detectCategory(name);
+  }
+  if (!category) category = 'Other';
   
   const products = getFromStorage(LS_KEYS.PRODUCTS);
   const index = products.findIndex(p => p.id === id);
@@ -841,10 +856,11 @@ function saveEditProduct(e) {
     if (window.clearImageCache) {
       window.clearImageCache(products[index].name + products[index].category);
     }
-    
+
     products[index].name = name;
     products[index].price = price;
     products[index].category = category;
+    products[index].imageUrl = customImg || '';
     saveToStorage(LS_KEYS.PRODUCTS, products);
     saveProductsToServer(products);
     
@@ -1106,6 +1122,49 @@ function initApp() {
   if (productForm) {
     productForm.onsubmit = addProduct;
     productForm.addEventListener('submit', addProduct);
+  }
+  
+  // Real-time Automatic Category Detection on typing product name
+  const productNameInput = document.getElementById('product-name');
+  const productCategorySelect = document.getElementById('product-category');
+  const autoCatBadge = document.getElementById('auto-cat-badge');
+  const autoCatName = document.getElementById('auto-cat-name');
+
+  if (productNameInput && productCategorySelect) {
+    productNameInput.addEventListener('input', function() {
+      const name = this.value.trim();
+      if (!name) {
+        if (autoCatBadge) autoCatBadge.style.display = 'none';
+        return;
+      }
+      if (window.detectCategory) {
+        const detected = window.detectCategory(name);
+        if (detected && detected !== 'Other') {
+          productCategorySelect.value = detected;
+          if (autoCatBadge && autoCatName) {
+            autoCatName.textContent = detected;
+            autoCatBadge.style.display = 'inline-block';
+          }
+        } else {
+          if (autoCatBadge) autoCatBadge.style.display = 'none';
+        }
+      }
+    });
+  }
+
+  // Automatic Category Detection in Edit Modal
+  const editNameInput = document.getElementById('edit-product-name');
+  const editCategorySelect = document.getElementById('edit-product-category');
+  if (editNameInput && editCategorySelect) {
+    editNameInput.addEventListener('input', function() {
+      const name = this.value.trim();
+      if (name && window.detectCategory) {
+        const detected = window.detectCategory(name);
+        if (detected && detected !== 'Other') {
+          editCategorySelect.value = detected;
+        }
+      }
+    });
   }
   
   // Handle admin password enter key
